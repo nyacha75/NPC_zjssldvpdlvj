@@ -395,11 +395,22 @@ async function addFiles(fileList) {
         const { char, expr } = parseName(file.name, mode);
         const item = await loadItem(file, expr, false);
         if (!item) continue;
+        item.isBase = !expr;   // 캐릭터 이름만 있는 파일 (예: 김철수.png)
         let group = state.groups.find(g => g.name === char);
         if (!group) { group = { id: uid('g'), name: char, items: [] }; state.groups.push(group); }
         group.items.push(item);
     }
+    state.groups.forEach(normalizeBase);
     renderList(); scheduleDraw();
+}
+
+// 같은 캐릭터에 표정 있는 다른 파일이 있으면, 이름만 있는 파일(김철수.png)을 '기본'으로 등록하고 맨 앞에 둔다
+function normalizeBase(g) {
+    if (!g.items.some(i => !i.isBase)) return;
+    const bases = g.items.filter(i => i.isBase && !i.baseApplied);
+    if (!bases.length) return;
+    bases.forEach(i => { if (!i.expr) i.expr = '기본'; i.baseApplied = true; });
+    g.items = [...bases, ...g.items.filter(i => !bases.includes(i))];
 }
 
 // 캐릭터 줄에 직접 올린 파일(fixed)은 파일명 분류 대상이 아니므로 그 줄에 그대로 둔다
@@ -441,10 +452,12 @@ function reparseAll() {
     all.forEach(item => {
         const { char, expr } = parseName(item.fileName, mode);
         item.expr = expr;
+        item.isBase = !expr; item.baseApplied = false;
         let group = state.groups.find(g => g.name === char);
         if (!group) { group = { id: uid('g'), name: char, items: [] }; state.groups.push(group); }
         group.items.push(item);
     });
+    state.groups.forEach(normalizeBase);
     renderList(); scheduleDraw();
 }
 
