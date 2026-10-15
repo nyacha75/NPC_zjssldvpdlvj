@@ -111,7 +111,15 @@
             cursor: grab; box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         }
         .collage-item:active { cursor: grabbing; }
-        .collage-item.off input { opacity: 0.45; }
+        .drag-handle { cursor: grab; user-select: none; padding: 6px 8px; color: #94a3b8; font-size: 16px; border-radius: 6px; line-height: 1; }
+        .drag-handle:hover { background: #e2e8f0; color: var(--primary); }
+        .drag-handle:active { cursor: grabbing; }
+        .group-card.ins-before { box-shadow: 0 -4px 0 0 var(--primary); }
+        .group-card.ins-after { box-shadow: 0 4px 0 0 var(--primary); }
+        .crop-box { max-width: 94vw; max-height: 94vh; overflow: auto; align-items: stretch; }
+        .crop-box canvas { width: min(480px, 100%); height: auto; align-self: center; border-radius: 8px; cursor: grab; touch-action: none; background: #cbd5e1; }
+        .crop-box canvas:active { cursor: grabbing; }
+        .crop-nav { display: flex; align-items: center; justify-content: center; gap: 12px; font-weight: 700; color: #475569; }
         .thumb {
             width: 100%; aspect-ratio: 1/1; border-radius: 4px; border: 1px solid #eee; pointer-events: none;
             background-color: #fff; background-repeat: no-repeat; background-position: center top; background-size: cover;
@@ -131,7 +139,7 @@
             background-image: linear-gradient(45deg, #f1f5f9 25%, transparent 25%), linear-gradient(-45deg, #f1f5f9 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #f1f5f9 75%), linear-gradient(-45deg, transparent 75%, #f1f5f9 75%);
             background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
         }
-        #sheetCanvas { max-width: 100%; display: none; box-shadow: 0 6px 18px rgba(0,0,0,0.12); }
+        #sheetCanvas { max-width: 100%; display: none; cursor: zoom-in; box-shadow: 0 6px 18px rgba(0,0,0,0.12); }
         .empty-msg { color: #94a3b8; font-size: 14px; padding: 40px 0; }
 
         /* 모달 */
@@ -154,6 +162,32 @@
         <div class="modal-btns">
             <button class="btn-cancel" id="backupCancel">취소</button>
             <button class="btn-confirm" id="backupConfirm">저장</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="cropModal">
+    <div class="modal-box crop-box">
+        <h3 id="cropTitle">✂ 확대 · 크롭</h3>
+        <div class="crop-nav">
+            <button class="mini-btn" id="cropPrev" title="이전 표정">◀</button>
+            <span id="cropIdx">1 / 1</span>
+            <button class="mini-btn" id="cropNext" title="다음 표정">▶</button>
+        </div>
+        <canvas id="cropCanvas"></canvas>
+        <div class="input-group" style="width:100%;">
+            <span style="font-size:13px; white-space:nowrap;">확대</span>
+            <input type="range" id="cropZoom" min="100" max="400" value="100">
+            <span id="cropZoomVal" style="font-family:monospace; font-weight:bold; width:50px; text-align:right;">100%</span>
+        </div>
+        <p class="help-text" style="margin:0;">이미지를 드래그해서 위치를 옮기고, 마우스 휠이나 슬라이더로 확대합니다. 밝은 테두리 안쪽이 시트에 들어가는 부분이며, 크롭하면 '칸 채우기' 방식으로 적용됩니다.</p>
+        <div class="btn-row">
+            <button class="sub-btn" id="cropReset">↺ 초기화</button>
+            <button class="sub-btn blue" id="cropApplyAll">이 캐릭터 전체에 적용</button>
+        </div>
+        <div class="modal-btns">
+            <button class="btn-cancel" id="cropCancel">취소</button>
+            <button class="btn-confirm" id="cropOk">적용</button>
         </div>
     </div>
 </div>
@@ -182,13 +216,14 @@
 
     <div id="editArea">
         <h3>1. 캐릭터 · 표정 정리</h3>
-        <p class="help-text">파일을 끌어오면 캐릭터 이름별로 줄이 만들어지고, 각 줄에 파일 목록이 표시됩니다. 카드를 <strong>드래그</strong>하면 순서를 바꾸거나 다른 캐릭터 줄로 옮길 수 있고, 🔤 버튼으로 해당 표정 이름을 숨길 수 있습니다.</p>
+        <p class="help-text">파일을 끌어오면 캐릭터 이름별로 줄이 만들어지고, 각 줄에 파일 목록이 표시됩니다. 표정 카드를 <strong>드래그</strong>하면 순서를 바꾸거나 다른 캐릭터 줄로 옮길 수 있고, 캐릭터 이름 왼쪽의 <strong>☰</strong>를 드래그하면 캐릭터 순서를 바꿀 수 있습니다. ✂ 버튼으로 확대·크롭할 수 있어요.</p>
         <div class="add-char-bar">
             <input type="text" id="newCharName" placeholder="캐릭터 이름 입력 후 추가 → 표정 이름만 적힌 파일을 그 줄에 바로 등록할 수 있어요">
             <button class="sub-btn blue" id="btnAddChar" style="flex:0 0 auto; padding:10px 18px; font-size:14px;">＋ 캐릭터 추가</button>
         </div>
         <div class="btn-row" style="margin-bottom: 12px; justify-content:flex-end;">
             <button class="sub-btn" id="btnToggleNames" style="flex:0 0 auto; padding:8px 16px;">🔤 표정 이름 전체 끄기</button>
+            <button class="sub-btn" id="btnCollapse" style="flex:0 0 auto; padding:8px 16px;">📁 캐릭터 접기</button>
             <button class="sub-btn danger" id="btnClearAll" style="flex:0 0 auto; padding:8px 16px;">🗑️ 전체 초기화</button>
         </div>
         <div id="groupList"></div>
@@ -197,6 +232,7 @@
     <hr class="divider">
 
     <h3>2. 최종 미리보기</h3>
+    <p class="help-text" style="margin:-4px 0 0;">캐릭터 이름이나 표정 칸을 <strong>클릭</strong>하면 확대·크롭 창이 열립니다.</p>
     <div class="preview-box">
         <div class="empty-msg" id="emptyMsg">위에 포트레이트 파일을 드래그하면 여기에 컨닝페이퍼가 만들어집니다.</div>
         <canvas id="sheetCanvas"></canvas>
@@ -228,11 +264,11 @@
             <div>
                 <label>배치</label>
                 <div class="input-group">
-                    <div class="field"><label>한 줄 최대 칸 수</label><input type="number" id="cols" value="0" min="0" title="0이면 한 줄에 전부"></div>
+                    <div class="field"><label>한 줄 최대 칸 수</label><input type="number" id="cols" value="5" min="0" title="0이면 한 줄에 전부"></div>
                     <div class="field"><label>칸 간격</label><input type="number" id="gap" value="10" min="0"></div>
                     <div class="field"><label>바깥 여백</label><input type="number" id="pad" value="20" min="0"></div>
                 </div>
-                <p class="help-text" style="margin:6px 0 0;">0 = 캐릭터 한 명을 항상 가로 한 줄에 표시 (기본). 숫자를 넣으면 그 칸 수마다 줄바꿈됩니다.</p>
+                <p class="help-text" style="margin:6px 0 0;">한 줄에 넣을 최대 칸 수 (기본 5). 넘으면 다음 줄로 넘어갑니다. 0 = 캐릭터 한 명을 항상 한 줄에 표시</p>
             </div>
             <div>
                 <label>이미지 맞춤</label>
@@ -254,8 +290,8 @@
                 <div class="input-group" style="margin-bottom:8px;">
                     <input type="checkbox" id="showChar" checked><label class="inline" for="showChar">캐릭터 이름 표시</label>
                     <select id="labelPos">
-                        <option value="left">줄 왼쪽</option>
-                        <option value="top">줄 위쪽</option>
+                        <option value="top">상단</option>
+                        <option value="left">좌측</option>
                     </select>
                 </div>
                 <div class="input-group">
@@ -281,14 +317,6 @@
                 </div>
             </div>
             <div>
-                <label>이름 구분 방식</label>
-                <select id="splitMode">
-                    <option value="first">첫 번째 구분자(- _ @) 기준 (앞 = 캐릭터, 뒤 = 표정)</option>
-                    <option value="last">마지막 구분자(- _ @) 기준</option>
-                </select>
-                <p class="help-text" style="margin:6px 0 0;">바꾸면 현재 파일들을 다시 분류합니다.</p>
-            </div>
-            <div>
                 <label>사용자 폰트 업로드</label>
                 <input type="file" id="fontFile" accept=".ttf,.otf,.woff,.woff2">
                 <div id="fontStatus" style="font-size:12px; color:#64748b; margin-top:6px;"></div>
@@ -303,13 +331,13 @@
    상태
    ================================================== */
 const $ = (id) => document.getElementById(id);
-const state = { groups: [], counter: 0 };   // groups: [{id, name, items:[{id, fileName, file, url, img, expr, nameOff}]}]
+const state = { groups: [], counter: 0 };   // groups: [{id, name, items:[{id, fileName, file, url, img, expr, crop}]}]
 let customFontName = null, customFontDataUrl = null;
-let draggedItemId = null;
+let draggedItemId = null, draggedGroupId = null;
 const uid = (p) => `${p}_${state.counter++}`;
 
 const SETTING_IDS = ['cellW','cellH','sq','cols','gap','pad','fit','focusY','showChar','labelPos','showExpr',
-                     'title','titleSize','charSize','textColor','charColor','cellBg','pageBg','splitMode'];
+                     'title','titleSize','charSize','textColor','charColor','cellBg','pageBg'];
 
 /* ==================================================
    유틸
@@ -334,7 +362,7 @@ function dataURLToFile(dataUrl, filename) {
 }
 // 구분자: - _ @ (전각 변형 포함). 앞 = 캐릭터 이름, 뒤 = 표정 이름. 구분자가 없으면 파일명 전체가 캐릭터 이름
 const SEP_RE = /[-_@＠－＿]/g;
-function parseName(fileName, mode) {
+function parseName(fileName) {
     const base = fileName.replace(/\.[^/.]+$/, '').trim();
     const seps = [];
     let m; SEP_RE.lastIndex = 0;
@@ -344,7 +372,7 @@ function parseName(fileName, mode) {
         if (pm) return { char: pm[1].trim(), expr: pm[2].trim() };
         return { char: base, expr: '' };
     }
-    const idx = mode === 'last' ? seps[seps.length - 1] : seps[0];
+    const idx = seps[0];   // 첫 번째 구분자 기준
     return { char: base.slice(0, idx).trim(), expr: base.slice(idx + 1).trim() };
 }
 const getFontFamily = () => customFontName ? `"${customFontName}", "Pretendard", sans-serif` : `"Pretendard", sans-serif`;
@@ -355,7 +383,7 @@ function readSettings() {
     return {
         cellW,
         cellH: $('sq').checked ? cellW : Math.max(20, num('cellH', 200)),
-        cols: Math.max(0, num('cols', 6)),
+        cols: Math.max(0, num('cols', 5)),
         gap: Math.max(0, num('gap', 10)),
         pad: Math.max(0, num('pad', 20)),
         fit: $('fit').value,
@@ -376,11 +404,11 @@ function readSettings() {
 /* ==================================================
    파일 추가 / 그룹핑
    ================================================== */
-function loadItem(file, expr, nameOff, fixed) {
+function loadItem(file, expr) {
     return new Promise((resolve) => {
         const url = URL.createObjectURL(file);
         const img = new Image();
-        img.onload = () => resolve({ id: uid('it'), fileName: file.name, file, url, img, expr, nameOff: !!nameOff, fixed: !!fixed });
+        img.onload = () => resolve({ id: uid('it'), fileName: file.name, file, url, img, expr, crop: null });
         img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
         img.src = url;
     });
@@ -390,10 +418,9 @@ async function addFiles(fileList) {
     const files = Array.from(fileList).filter(f => f.type.startsWith('image/'));
     if (!files.length) return;
     files.sort((a, b) => a.name.localeCompare(b.name, 'ko', { numeric: true }));
-    const mode = $('splitMode').value;
     for (const file of files) {
-        const { char, expr } = parseName(file.name, mode);
-        const item = await loadItem(file, expr, false);
+        const { char, expr } = parseName(file.name);
+        const item = await loadItem(file, expr);
         if (!item) continue;
         item.isBase = !expr;   // 캐릭터 이름만 있는 파일 (예: 김철수.png)
         let group = state.groups.find(g => g.name === char);
@@ -413,7 +440,7 @@ function normalizeBase(g) {
     g.items = [...bases, ...g.items.filter(i => !bases.includes(i))];
 }
 
-// 캐릭터 줄에 직접 올린 파일(fixed)은 파일명 분류 대상이 아니므로 그 줄에 그대로 둔다
+// 캐릭터 줄에 직접 올린 파일: 파일명 전체를 표정 이름으로 사용 (표정 이름만 적힌 파일용)
 async function addFilesToGroup(fileList, groupId) {
     const g = state.groups.find(x => x.id === groupId);
     if (!g) return;
@@ -421,10 +448,10 @@ async function addFilesToGroup(fileList, groupId) {
     files.sort((a, b) => a.name.localeCompare(b.name, 'ko', { numeric: true }));
     for (const file of files) {
         const base = file.name.replace(/\.[^/.]+$/, '').trim();
-        const p = parseName(file.name, 'first');
+        const p = parseName(file.name);
         // '김철수-화남' 처럼 이미 캐릭터 이름이 붙어 있으면 표정만 쓰고, 아니면 파일명 전체를 표정 이름으로 사용
         const expr = (p.char === g.name && p.expr) ? p.expr : base;
-        const item = await loadItem(file, expr, false, true);
+        const item = await loadItem(file, expr);
         if (item) g.items.push(item);
     }
     renderList(); scheduleDraw();
@@ -442,22 +469,14 @@ function addCharacter() {
 $('btnAddChar').addEventListener('click', addCharacter);
 $('newCharName').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addCharacter(); } });
 
-function reparseAll() {
-    const old = state.groups;
-    const mode = $('splitMode').value;
-    state.groups = old
-        .filter(g => g.keep || g.items.some(i => i.fixed))
-        .map(g => ({ id: g.id, name: g.name, keep: g.keep, items: g.items.filter(i => i.fixed) }));
-    const all = old.flatMap(g => g.items).filter(i => !i.fixed);
-    all.forEach(item => {
-        const { char, expr } = parseName(item.fileName, mode);
-        item.expr = expr;
-        item.isBase = !expr; item.baseApplied = false;
-        let group = state.groups.find(g => g.name === char);
-        if (!group) { group = { id: uid('g'), name: char, items: [] }; state.groups.push(group); }
-        group.items.push(item);
-    });
-    state.groups.forEach(normalizeBase);
+function moveGroup(id, targetId, after) {
+    if (id === targetId) return;
+    const from = state.groups.findIndex(g => g.id === id);
+    if (from < 0) return;
+    const [g] = state.groups.splice(from, 1);
+    const to = state.groups.findIndex(x => x.id === targetId);
+    if (to < 0) { state.groups.splice(from, 0, g); return; }
+    state.groups.splice(to + (after ? 1 : 0), 0, g);
     renderList(); scheduleDraw();
 }
 
@@ -506,14 +525,27 @@ function renderList() {
     $('btnBackup').disabled = !total;
     if (!state.groups.length) root.appendChild(mk('div', 'empty-msg', '아직 캐릭터가 없습니다. 파일을 끌어오거나 위에서 캐릭터를 추가해 주세요.'));
 
-    state.groups.forEach((g, gi) => {
+    state.groups.forEach((g) => {
         const card = mk('div', 'group-card');
         const head = mk('div', 'group-head');
 
-        const up = mk('button', 'mini-btn', '▲'); up.title = '위로';
-        const down = mk('button', 'mini-btn', '▼'); down.title = '아래로';
-        up.onclick = () => { if (gi > 0) { [state.groups[gi - 1], state.groups[gi]] = [state.groups[gi], state.groups[gi - 1]]; renderList(); scheduleDraw(); } };
-        down.onclick = () => { if (gi < state.groups.length - 1) { [state.groups[gi + 1], state.groups[gi]] = [state.groups[gi], state.groups[gi + 1]]; renderList(); scheduleDraw(); } };
+        // 캐릭터 순서 변경용 드래그 핸들
+        const handle = mk('span', 'drag-handle', '☰');
+        handle.draggable = true; handle.title = '드래그해서 캐릭터 순서 변경';
+        handle.addEventListener('dragstart', (e) => {
+            draggedGroupId = g.id;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', 'group');
+            e.dataTransfer.setDragImage(card, 20, 20);
+        });
+        handle.addEventListener('dragend', () => {
+            draggedGroupId = null;
+            document.querySelectorAll('.group-card').forEach(c => c.classList.remove('ins-before', 'ins-after'));
+        });
+
+        const fold = mk('button', 'mini-btn', g.collapsed ? '▸' : '▾');
+        fold.title = g.collapsed ? '펼치기' : '접기';
+        fold.onclick = () => { g.collapsed = !g.collapsed; renderList(); };
 
         const nameInput = mk('input'); nameInput.type = 'text'; nameInput.value = g.name; nameInput.placeholder = '캐릭터 이름';
         nameInput.addEventListener('input', () => { g.name = nameInput.value; scheduleDraw(); });
@@ -522,93 +554,123 @@ function renderList() {
         const del = mk('button', 'mini-btn danger', '✕'); del.title = '이 캐릭터 줄 삭제';
         del.onclick = () => {
             if (!confirm(`'${g.name}' 캐릭터와 이미지 ${g.items.length}장을 목록에서 제거할까요?`)) return;
-            state.groups.splice(gi, 1); renderList(); scheduleDraw();
+            const i = state.groups.indexOf(g);
+            if (i >= 0) state.groups.splice(i, 1);
+            renderList(); scheduleDraw();
         };
         const fileIn = mk('input'); fileIn.type = 'file'; fileIn.accept = 'image/*'; fileIn.multiple = true; fileIn.style.display = 'none';
         fileIn.addEventListener('change', async (e) => { await addFilesToGroup(e.target.files, g.id); e.target.value = ''; });
         const addBtn = mk('button', 'mini-btn', '📥 파일 추가');
         addBtn.title = '이 캐릭터에 파일 추가 (표정 이름만 적힌 파일용)';
         addBtn.onclick = () => fileIn.click();
-        head.append(up, down, nameInput, cnt, addBtn, fileIn, del);
+        head.append(handle, fold, nameInput, cnt, addBtn, fileIn, del);
 
-        // 이 캐릭터 줄 위에 파일을 놓으면 해당 캐릭터로 등록
         card.addEventListener('dragover', (e) => {
-            if (!hasFiles(e)) return;
+            if (draggedGroupId) {                       // 캐릭터 순서 드래그
+                if (draggedGroupId === g.id) return;
+                e.preventDefault(); e.stopPropagation();
+                const r = card.getBoundingClientRect();
+                const after = (e.clientY - r.top) > r.height / 2;
+                card.classList.toggle('ins-after', after);
+                card.classList.toggle('ins-before', !after);
+                return;
+            }
+            if (!hasFiles(e)) return;                   // 파일 드래그: 이 캐릭터로 등록
             e.preventDefault(); e.stopPropagation(); card.classList.add('drop-target');
         });
-        card.addEventListener('dragleave', (e) => { if (!card.contains(e.relatedTarget)) card.classList.remove('drop-target'); });
+        card.addEventListener('dragleave', (e) => {
+            if (!card.contains(e.relatedTarget)) card.classList.remove('drop-target', 'ins-before', 'ins-after');
+        });
         card.addEventListener('drop', async (e) => {
+            if (draggedGroupId) {
+                e.preventDefault(); e.stopPropagation();
+                const r = card.getBoundingClientRect();
+                const after = (e.clientY - r.top) > r.height / 2;
+                const id = draggedGroupId; draggedGroupId = null;
+                moveGroup(id, g.id, after);
+                return;
+            }
             if (!hasFiles(e)) return;
             e.preventDefault(); e.stopPropagation();
             card.classList.remove('drop-target'); dz.classList.remove('dragging');
             await addFilesToGroup(e.dataTransfer.files, g.id);
         });
 
-        const grid = mk('div', 'group-grid');
-        if (!g.items.length) grid.appendChild(mk('div', 'empty-hint', '표정 이름만 적힌 파일을 여기에 드래그하거나 📥 파일 추가로 올려 주세요.'));
-        grid.addEventListener('dragover', (e) => { if (draggedItemId) e.preventDefault(); });
-        grid.addEventListener('drop', (e) => {
-            if (!draggedItemId) return;
-            e.preventDefault(); e.stopPropagation();
-            moveItemToGroupEnd(draggedItemId, g.id); draggedItemId = null;
-        });
+        card.appendChild(head);
 
-        g.items.forEach((item, ii) => {
-            const el = mk('div', 'collage-item' + (item.nameOff ? ' off' : ''));
-            el.draggable = true;
-            el.addEventListener('dragstart', (e) => {
-                draggedItemId = item.id; e.dataTransfer.setData('text/plain', 'item');
-                setTimeout(() => el.style.opacity = '0.5', 0);
-            });
-            el.addEventListener('dragend', () => { el.style.opacity = '1'; draggedItemId = null; });
-            el.addEventListener('dragover', (e) => { if (draggedItemId) e.preventDefault(); });
-            el.addEventListener('drop', (e) => {
+        if (!g.collapsed) {
+            const grid = mk('div', 'group-grid');
+            if (!g.items.length) grid.appendChild(mk('div', 'empty-hint', '표정 이름만 적힌 파일을 여기에 드래그하거나 📥 파일 추가로 올려 주세요.'));
+            grid.addEventListener('dragover', (e) => { if (draggedItemId) e.preventDefault(); });
+            grid.addEventListener('drop', (e) => {
                 if (!draggedItemId) return;
                 e.preventDefault(); e.stopPropagation();
-                const r = el.getBoundingClientRect();
-                moveItem(draggedItemId, item.id, (e.clientX - r.left) / r.width > 0.5);
-                draggedItemId = null;
+                moveItemToGroupEnd(draggedItemId, g.id); draggedItemId = null;
             });
 
-            const thumb = mk('div', 'thumb');
-            thumb.style.backgroundImage = `url("${item.url}")`;
+            g.items.forEach((item, ii) => {
+                const el = mk('div', 'collage-item');
+                el.draggable = true;
+                el.addEventListener('dragstart', (e) => {
+                    draggedItemId = item.id; e.dataTransfer.setData('text/plain', 'item');
+                    setTimeout(() => el.style.opacity = '0.5', 0);
+                });
+                el.addEventListener('dragend', () => { el.style.opacity = '1'; draggedItemId = null; });
+                el.addEventListener('dragover', (e) => { if (draggedItemId) e.preventDefault(); });
+                el.addEventListener('drop', (e) => {
+                    if (!draggedItemId) return;
+                    e.preventDefault(); e.stopPropagation();
+                    const r = el.getBoundingClientRect();
+                    moveItem(draggedItemId, item.id, (e.clientX - r.left) / r.width > 0.5);
+                    draggedItemId = null;
+                });
 
-            const input = mk('input'); input.type = 'text'; input.value = item.expr; input.placeholder = '표정 이름';
-            input.addEventListener('input', () => { item.expr = input.value; scheduleDraw(); });
+                const thumb = mk('div', 'thumb');
+                thumb.style.backgroundImage = `url("${item.url}")`;
 
-            const ctr = mk('div', 'item-controls');
-            const bL = mk('button', null, '◀'); bL.title = '앞으로';
-            const bN = mk('button', item.nameOff ? 'on' : '', '🔤'); bN.title = '표정 이름 표시/숨김';
-            const bX = mk('button', null, '✕'); bX.title = '제외';
-            const bR = mk('button', null, '▶'); bR.title = '뒤로';
-            bL.onclick = () => { if (ii > 0) { [g.items[ii - 1], g.items[ii]] = [g.items[ii], g.items[ii - 1]]; renderList(); scheduleDraw(); } };
-            bR.onclick = () => { if (ii < g.items.length - 1) { [g.items[ii + 1], g.items[ii]] = [g.items[ii], g.items[ii + 1]]; renderList(); scheduleDraw(); } };
-            bN.onclick = () => { item.nameOff = !item.nameOff; renderList(); scheduleDraw(); };
-            bX.onclick = () => { g.items.splice(ii, 1); cleanupEmptyGroups(); renderList(); scheduleDraw(); };
-            ctr.append(bL, bN, bX, bR);
+                const input = mk('input'); input.type = 'text'; input.value = item.expr; input.placeholder = '표정 이름';
+                input.addEventListener('input', () => { item.expr = input.value; scheduleDraw(); });
 
-            const fname = mk('div', 'fname', item.fileName); fname.title = item.fileName;
-            el.append(thumb, input, fname, ctr);
-            grid.appendChild(el);
-        });
+                const ctr = mk('div', 'item-controls');
+                const bL = mk('button', null, '◀'); bL.title = '앞으로';
+                const bC = mk('button', item.crop ? 'on' : '', '✂'); bC.title = '확대 · 크롭';
+                const bX = mk('button', null, '✕'); bX.title = '제외';
+                const bR = mk('button', null, '▶'); bR.title = '뒤로';
+                bL.onclick = () => { if (ii > 0) { [g.items[ii - 1], g.items[ii]] = [g.items[ii], g.items[ii - 1]]; renderList(); scheduleDraw(); } };
+                bR.onclick = () => { if (ii < g.items.length - 1) { [g.items[ii + 1], g.items[ii]] = [g.items[ii], g.items[ii + 1]]; renderList(); scheduleDraw(); } };
+                bC.onclick = () => openCrop(g, ii);
+                bX.onclick = () => { g.items.splice(ii, 1); cleanupEmptyGroups(); renderList(); scheduleDraw(); };
+                ctr.append(bL, bC, bX, bR);
 
-        card.append(head, grid);
+                const fname = mk('div', 'fname', item.fileName); fname.title = item.fileName;
+                el.append(thumb, input, fname, ctr);
+                grid.appendChild(el);
+            });
+            card.appendChild(grid);
+        }
         root.appendChild(card);
     });
     updateToggleNamesBtn();
+    updateCollapseBtn();
 }
 
+// 표정 이름 전체 표시 여부는 시트 설정의 '표정 이름 표시'와 같은 값
 function updateToggleNamesBtn() {
-    const items = state.groups.flatMap(g => g.items);
-    const allOff = items.length && items.every(i => i.nameOff);
-    $('btnToggleNames').textContent = allOff ? '🔤 표정 이름 전체 켜기' : '🔤 표정 이름 전체 끄기';
+    $('btnToggleNames').textContent = $('showExpr').checked ? '🔤 표정 이름 전체 끄기' : '🔤 표정 이름 전체 켜기';
+}
+function updateCollapseBtn() {
+    const all = state.groups.length > 0 && state.groups.every(g => g.collapsed);
+    $('btnCollapse').textContent = all ? '📂 캐릭터 펼치기' : '📁 캐릭터 접기';
 }
 $('btnToggleNames').addEventListener('click', () => {
-    const items = state.groups.flatMap(g => g.items);
-    if (!items.length) return;
-    const allOff = items.every(i => i.nameOff);
-    items.forEach(i => i.nameOff = !allOff);
-    renderList(); scheduleDraw();
+    $('showExpr').checked = !$('showExpr').checked;
+    updateToggleNamesBtn(); scheduleDraw();
+});
+$('btnCollapse').addEventListener('click', () => {
+    if (!state.groups.length) return;
+    const all = state.groups.every(g => g.collapsed);
+    state.groups.forEach(g => { g.collapsed = !all; });
+    renderList();
 });
 $('btnClearAll').addEventListener('click', () => {
     if (!state.groups.length) return;
@@ -628,9 +690,31 @@ function scheduleDraw() {
     requestAnimationFrame(() => { drawQueued = false; drawSheet(); });
 }
 
+let cellRects = [], labelRects = [];   // 미리보기 클릭 판정용 (캔버스 좌표)
+const clamp01 = (v) => Math.min(1, Math.max(0, v));
+
+// 칸 안에서 이미지가 그려질 위치/크기. crop이 있으면 '칸 채우기' 기준으로 확대 + 위치(fx, fy: 0~1)
+function imageRect(item, x, y, w, h, S) {
+    const iw = item.img.naturalWidth, ih = item.img.naturalHeight;
+    const c = item.crop;
+    if (c) {
+        const scale = Math.max(w / iw, h / ih) * c.zoom;
+        const dw = iw * scale, dh = ih * scale;
+        return { dx: x + (w - dw) * c.fx, dy: y + (h - dh) * c.fy, dw, dh };
+    }
+    const scale = S.fit === 'contain' ? Math.min(w / iw, h / ih) : Math.max(w / iw, h / ih);
+    const dw = iw * scale, dh = ih * scale;
+    return {
+        dx: x + (w - dw) / 2,
+        dy: S.fit === 'contain' ? y + (h - dh) / 2 : y + (h - dh) * (S.focusY / 100),
+        dw, dh
+    };
+}
+
 function drawSheet() {
     const cvs = $('sheetCanvas');
     const groups = state.groups.filter(g => g.items.length);
+    cellRects = []; labelRects = [];
     if (!groups.length) { cvs.style.display = 'none'; $('emptyMsg').style.display = 'block'; return; }
     $('emptyMsg').style.display = 'none';
     cvs.style.display = 'inline-block';
@@ -649,8 +733,9 @@ function drawSheet() {
     const left = S.showChar && S.labelPos === 'left';
     const top = S.showChar && S.labelPos === 'top';
     ctx.font = `900 ${S.charSize}px ${ff}`;
-    let labelW = 0;
-    if (left) labelW = Math.ceil(Math.max(...groups.map(g => ctx.measureText(g.name || ' ').width)));
+    const nameWs = groups.map(g => Math.ceil(ctx.measureText(g.name || ' ').width));
+    const labelW = left ? Math.max(...nameWs) : 0;
+    const topNameW = top ? Math.max(...nameWs) : 0;
     const headH = top ? Math.round(S.charSize * 1.3) : 0;
 
     // 제목 영역
@@ -663,13 +748,13 @@ function drawSheet() {
 
     // 전체 크기
     const bodyW = (left ? labelW + gap * 2 : 0) + gridW;
-    const W = pad * 2 + Math.max(bodyW, titleW);
+    const W = pad * 2 + Math.max(bodyW, titleW, topNameW);
     let H = pad * 2 + titleH;
-    const blocks = groups.map(g => {
+    const blocks = groups.map((g, gi) => {
         const cols = colsFor(g);
         const rows = Math.ceil(g.items.length / cols);
         const h = headH + rows * cellH + (rows - 1) * gap;
-        return { g, cols, rows, h };
+        return { g, cols, rows, h, nameW: nameWs[gi] };
     });
     H += blocks.reduce((s, b) => s + b.h, 0) + (blocks.length - 1) * blockGap;
 
@@ -692,16 +777,22 @@ function drawSheet() {
 
     const gridX = pad + (left ? labelW + gap * 2 : 0);
     blocks.forEach(b => {
-        // 캐릭터 이름
+        const bw = b.cols * cellW + (b.cols - 1) * gap;
+        const bodyH = b.rows * cellH + (b.rows - 1) * gap;
+
+        // 캐릭터 이름 (중앙 정렬)
         if (S.showChar) {
             ctx.font = `900 ${S.charSize}px ${ff}`;
+            ctx.textAlign = 'center';
             if (left) {
-                ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-                const bodyH = b.rows * cellH + (b.rows - 1) * gap;
-                stroke(b.g.name, pad, y + bodyH / 2, S.charSize, S.charColor);
+                ctx.textBaseline = 'middle';
+                stroke(b.g.name, pad + labelW / 2, y + bodyH / 2, S.charSize, S.charColor);
+                labelRects.push({ g: b.g, x: pad, y, w: labelW, h: bodyH });
             } else {
-                ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-                stroke(b.g.name, gridX, y, S.charSize, S.charColor);
+                ctx.textBaseline = 'top';
+                const cx = Math.min(Math.max(gridX + bw / 2, pad + b.nameW / 2), W - pad - b.nameW / 2);
+                stroke(b.g.name, cx, y, S.charSize, S.charColor);
+                labelRects.push({ g: b.g, x: cx - b.nameW / 2, y, w: b.nameW, h: headH });
             }
         }
         const gy = y + headH;
@@ -709,19 +800,16 @@ function drawSheet() {
         b.g.items.forEach((item, i) => {
             const cx = gridX + (i % b.cols) * (cellW + gap);
             const cy = gy + Math.floor(i / b.cols) * (cellH + gap);
+            cellRects.push({ g: b.g, i, x: cx, y: cy, w: cellW, h: cellH });
 
             ctx.fillStyle = S.cellBg; ctx.fillRect(cx, cy, cellW, cellH);
             ctx.save();
             ctx.beginPath(); ctx.rect(cx, cy, cellW, cellH); ctx.clip();
-            const iw = item.img.naturalWidth, ih = item.img.naturalHeight;
-            const scale = S.fit === 'contain' ? Math.min(cellW / iw, cellH / ih) : Math.max(cellW / iw, cellH / ih);
-            const dw = iw * scale, dh = ih * scale;
-            const dx = cx + (cellW - dw) / 2;
-            const dy = S.fit === 'contain' ? cy + (cellH - dh) / 2 : cy + (cellH - dh) * (S.focusY / 100);
-            ctx.drawImage(item.img, dx, dy, dw, dh);
+            const r = imageRect(item, cx, cy, cellW, cellH, S);
+            ctx.drawImage(item.img, r.dx, r.dy, r.dw, r.dh);
             ctx.restore();
 
-            if (S.showExpr && item.expr && !item.nameOff) {
+            if (S.showExpr && item.expr) {
                 const fs = Math.max(14, Math.floor(cellW * 0.12));
                 ctx.font = `900 ${fs}px ${ff}`;
                 ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
@@ -733,6 +821,144 @@ function drawSheet() {
 }
 
 /* ==================================================
+   미리보기 클릭 → 확대 · 크롭
+   ================================================== */
+const cropState = { group: null, idx: 0, snapshot: null, drag: null };
+const cropCvs = $('cropCanvas');
+const curItem = () => cropState.group.items[cropState.idx];
+
+const defaultCrop = () => ({ zoom: 1, fx: 0.5, fy: clamp01(readSettings().focusY / 100) });
+function ensureCrop(item) { if (!item.crop) item.crop = defaultCrop(); return item.crop; }
+
+function openCrop(g, idx) {
+    if (!g || !g.items.length) return;
+    cropState.group = g;
+    cropState.idx = Math.min(Math.max(0, idx), g.items.length - 1);
+    cropState.snapshot = g.items.map(i => ({ id: i.id, crop: i.crop ? { ...i.crop } : null }));
+    $('cropModal').classList.add('open');
+    refreshCrop();
+}
+function closeCrop(revert) {
+    const g = cropState.group;
+    if (g && revert) {
+        cropState.snapshot.forEach(s => { const it = g.items.find(x => x.id === s.id); if (it) it.crop = s.crop; });
+    }
+    $('cropModal').classList.remove('open');
+    cropState.group = null; cropState.drag = null;
+    renderList(); scheduleDraw();
+}
+
+function refreshCrop() {
+    const g = cropState.group; if (!g) return;
+    const item = curItem();
+    $('cropTitle').textContent = `✂ ${g.name || '(이름 없음)'} · ${item.expr || item.fileName}`;
+    $('cropIdx').textContent = `${cropState.idx + 1} / ${g.items.length}`;
+    const z = Math.round((item.crop ? item.crop.zoom : 1) * 100);
+    $('cropZoom').value = z; $('cropZoomVal').textContent = z + '%';
+    drawCrop();
+}
+
+// 밝은 테두리 안쪽이 시트에 실제로 들어가는 영역, 바깥은 잘려나가는 부분
+function drawCrop() {
+    if (!cropState.group) return;
+    const item = curItem(), S = readSettings();
+    const W = S.cellW, H = S.cellH, m = Math.round(Math.min(W, H) * 0.35);
+    cropCvs.width = W + m * 2; cropCvs.height = H + m * 2;
+    const ctx = cropCvs.getContext('2d');
+    ctx.fillStyle = '#cbd5e1'; ctx.fillRect(0, 0, cropCvs.width, cropCvs.height);
+    ctx.fillStyle = S.cellBg; ctx.fillRect(m, m, W, H);
+    const r = imageRect(item, m, m, W, H, S);
+    ctx.drawImage(item.img, r.dx, r.dy, r.dw, r.dh);
+    ctx.fillStyle = 'rgba(15,23,42,0.55)';
+    ctx.fillRect(0, 0, cropCvs.width, m); ctx.fillRect(0, m + H, cropCvs.width, m);
+    ctx.fillRect(0, m, m, H); ctx.fillRect(m + W, m, m, H);
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.strokeRect(m, m, W, H);
+}
+
+function panCrop(dx, dy) {
+    const item = curItem(), S = readSettings();
+    const c = ensureCrop(item);
+    const r = imageRect(item, 0, 0, S.cellW, S.cellH, S);
+    const freeX = r.dw - S.cellW, freeY = r.dh - S.cellH;
+    if (freeX > 0.5) c.fx = clamp01(c.fx - dx / freeX);
+    if (freeY > 0.5) c.fy = clamp01(c.fy - dy / freeY);
+    drawCrop(); scheduleDraw();
+}
+
+// 확대/축소는 칸 중앙에 보이던 지점을 기준으로 유지
+function setCropZoom(z) {
+    const item = curItem(), S = readSettings();
+    const W = S.cellW, H = S.cellH;
+    const c = ensureCrop(item);
+    const r0 = imageRect(item, 0, 0, W, H, S);
+    const ux = (W / 2 - r0.dx) / r0.dw, uy = (H / 2 - r0.dy) / r0.dh;
+    c.zoom = Math.min(4, Math.max(1, z));
+    const r1 = imageRect(item, 0, 0, W, H, S);
+    const nx = W / 2 - ux * r1.dw, ny = H / 2 - uy * r1.dh;
+    c.fx = r1.dw - W > 0.5 ? clamp01(-nx / (r1.dw - W)) : 0.5;
+    c.fy = r1.dh - H > 0.5 ? clamp01(-ny / (r1.dh - H)) : 0.5;
+    refreshCrop(); scheduleDraw();
+}
+
+cropCvs.addEventListener('pointerdown', (e) => {
+    if (!cropState.group) return;
+    cropCvs.setPointerCapture(e.pointerId);
+    cropState.drag = { x: e.clientX, y: e.clientY };
+});
+cropCvs.addEventListener('pointermove', (e) => {
+    const d = cropState.drag; if (!d || !cropState.group) return;
+    const k = cropCvs.width / cropCvs.getBoundingClientRect().width;
+    const dx = (e.clientX - d.x) * k, dy = (e.clientY - d.y) * k;
+    d.x = e.clientX; d.y = e.clientY;
+    panCrop(dx, dy);
+});
+['pointerup', 'pointercancel'].forEach(t => cropCvs.addEventListener(t, () => { cropState.drag = null; }));
+cropCvs.addEventListener('wheel', (e) => {
+    if (!cropState.group) return;
+    e.preventDefault();
+    const z = curItem().crop ? curItem().crop.zoom : 1;
+    setCropZoom(z * (e.deltaY < 0 ? 1.1 : 1 / 1.1));
+}, { passive: false });
+$('cropZoom').addEventListener('input', () => { if (cropState.group) setCropZoom(parseInt($('cropZoom').value) / 100); });
+
+$('cropPrev').addEventListener('click', () => {
+    const g = cropState.group; if (!g) return;
+    cropState.idx = (cropState.idx - 1 + g.items.length) % g.items.length; refreshCrop();
+});
+$('cropNext').addEventListener('click', () => {
+    const g = cropState.group; if (!g) return;
+    cropState.idx = (cropState.idx + 1) % g.items.length; refreshCrop();
+});
+$('cropReset').addEventListener('click', () => {
+    if (!cropState.group) return;
+    curItem().crop = null; refreshCrop(); scheduleDraw();
+});
+$('cropApplyAll').addEventListener('click', () => {
+    const g = cropState.group; if (!g) return;
+    const c = ensureCrop(curItem());
+    g.items.forEach(i => { i.crop = { ...c }; });
+    drawCrop(); scheduleDraw();
+    const b = $('cropApplyAll'), t = b.textContent;
+    b.textContent = '✔ 적용됨'; setTimeout(() => { b.textContent = t; }, 1200);
+});
+$('cropOk').addEventListener('click', () => closeCrop(false));
+$('cropCancel').addEventListener('click', () => closeCrop(true));
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && cropState.group) closeCrop(true); });
+
+// 미리보기에서 칸(또는 캐릭터 이름)을 누르면 해당 캐릭터의 크롭 창을 연다
+$('sheetCanvas').addEventListener('click', (e) => {
+    const cvs = $('sheetCanvas');
+    const r = cvs.getBoundingClientRect();
+    const px = (e.clientX - r.left) * (cvs.width / r.width);
+    const py = (e.clientY - r.top) * (cvs.height / r.height);
+    const inside = (b) => px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h;
+    const cell = cellRects.find(inside);
+    if (cell) { openCrop(cell.g, cell.i); return; }
+    const label = labelRects.find(inside);
+    if (label) openCrop(label.g, 0);
+});
+
+/* ==================================================
    설정 이벤트
    ================================================== */
 SETTING_IDS.forEach(id => {
@@ -741,15 +967,11 @@ SETTING_IDS.forEach(id => {
         if (id === 'sq') { $('cellH').disabled = $('sq').checked; if ($('sq').checked) $('cellH').value = $('cellW').value; }
         if (id === 'cellW' && $('sq').checked) $('cellH').value = $('cellW').value;
         if (id === 'focusY') $('focusYVal').textContent = `${$('focusY').value}%`;
+        if (id === 'showExpr') updateToggleNamesBtn();
         scheduleDraw();
     };
     el.addEventListener('input', handler);
     el.addEventListener('change', handler);
-});
-$('splitMode').addEventListener('change', () => {
-    if (!state.groups.length) return;
-    if (!confirm('이름 구분 방식을 바꾸면 현재 캐릭터/표정 이름이 파일명 기준으로 다시 분류됩니다. 진행할까요?')) return;
-    reparseAll();
 });
 
 /* ==================================================
@@ -811,7 +1033,7 @@ $('backupConfirm').addEventListener('click', async () => {
         for (const g of state.groups) {
             const items = [];
             for (const it of g.items) {
-                items.push({ fileName: it.fileName, expr: it.expr, nameOff: it.nameOff, fixed: it.fixed, src: await fileToDataURL(it.file) });
+                items.push({ fileName: it.fileName, expr: it.expr, crop: it.crop || null, src: await fileToDataURL(it.file) });
             }
             groups.push({ name: g.name, keep: !!g.keep, items });
         }
@@ -848,8 +1070,8 @@ async function importBackup(file) {
         for (const g of data.groups) {
             const group = { id: uid('g'), name: g.name, keep: !!g.keep, items: [] };
             for (const it of g.items) {
-                const item = await loadItem(dataURLToFile(it.src, it.fileName), it.expr, it.nameOff, it.fixed);
-                if (item) group.items.push(item);
+                const item = await loadItem(dataURLToFile(it.src, it.fileName), it.expr);
+                if (item) { item.crop = it.crop || null; group.items.push(item); }
             }
             if (group.items.length || group.keep) state.groups.push(group);
         }
@@ -865,6 +1087,8 @@ $('importJson2').addEventListener('change', async (e) => { const f = e.target.fi
 if (document.fonts && document.fonts.load) {
     document.fonts.load('900 20px Pretendard').then(scheduleDraw).catch(() => {});
 }
+
+renderList();
 </script>
 </body>
 </html>
