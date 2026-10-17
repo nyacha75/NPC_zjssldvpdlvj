@@ -53,6 +53,9 @@
         .input-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
         .field { display: flex; flex-direction: column; }
         .field label { font-size: 13px; margin-bottom: 5px; }
+        .field.row { flex-direction: row; align-items: center; gap: 8px; }
+        .field.row label { margin: 0; white-space: nowrap; }
+        .field.row input[type=number] { width: 80px; }
 
         .action-btn {
             display: block; width: 100%; background-color: var(--primary); color: white; border: none;
@@ -130,8 +133,13 @@
         .collage-item {
             background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px;
             display: flex; flex-direction: column; align-items: center; gap: 6px;
-            cursor: grab; box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            cursor: grab; box-shadow: 0 2px 5px rgba(0,0,0,0.05); position: relative;
         }
+        .item-x {
+            position: absolute; top: 4px; right: 4px; z-index: 2; width: 22px; height: 22px; border-radius: 50%; border: none;
+            background: rgba(15,23,42,0.65); color: #fff; font-size: 12px; font-weight: 700; line-height: 22px; padding: 0; cursor: pointer;
+        }
+        .item-x:hover { background: #b91c1c; }
         .collage-item:active { cursor: grabbing; }
         .drag-handle { cursor: grab; user-select: none; padding: 6px 8px; color: #94a3b8; font-size: 16px; border-radius: 6px; line-height: 1; }
         .drag-handle:hover { background: #e2e8f0; color: var(--primary); }
@@ -141,8 +149,6 @@
         .crop-box { max-width: 94vw; max-height: 94vh; overflow: auto; align-items: stretch; }
         .crop-box canvas { width: min(480px, 100%); height: auto; align-self: center; border-radius: 8px; cursor: grab; touch-action: none; background: #cbd5e1; }
         .crop-box canvas:active { cursor: grabbing; }
-        .blank-thumb { display: flex; align-items: center; justify-content: center; border: 2px dashed #cbd5e1; background: #f8fafc; color: #94a3b8; font-size: 13px; font-weight: 700; }
-        .collage-item.blank { background: #f1f5f9; border-style: dashed; }
         .cell-menu { display: none; position: fixed; z-index: 10000; background: #fff; border: 1px solid #cbd5e1; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.18); padding: 6px; min-width: 190px; flex-direction: column; gap: 2px; }
         .cell-menu button { text-align: left; background: none; border: none; padding: 10px 12px; border-radius: 6px; font-family: inherit; font-size: 14px; font-weight: 600; color: #334155; cursor: pointer; }
         .cell-menu button:hover { background: #eff6ff; color: var(--primary); }
@@ -150,7 +156,7 @@
         .cell-menu button.danger:hover { background: #fee2e2; }
         .crop-nav { display: flex; align-items: center; justify-content: center; gap: 12px; font-weight: 700; color: #475569; }
         .thumb {
-            width: 100%; aspect-ratio: 1/1; border-radius: 4px; border: 1px solid #eee; pointer-events: none;
+            width: 100%; aspect-ratio: 1/1; border-radius: 4px; border: 1px solid #eee; cursor: pointer;
             background-color: #fff; background-repeat: no-repeat; background-position: center top; background-size: cover;
         }
         .collage-item input { width: 95%; text-align: center; font-size: 13px; font-weight: bold; padding: 6px; color: var(--primary); }
@@ -162,14 +168,8 @@
         .item-controls button:hover { background: #e2e8f0; }
         .item-controls button.on { background: #1e293b; color: #fff; }
 
-        .preview-box {
-            text-align: center; overflow-x: auto; background: #fff; border: 1px solid #cbd5e1;
-            border-radius: 8px; padding: 10px;
-            background-image: linear-gradient(45deg, #f1f5f9 25%, transparent 25%), linear-gradient(-45deg, #f1f5f9 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #f1f5f9 75%), linear-gradient(-45deg, transparent 75%, #f1f5f9 75%);
-            background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
-        }
-        #sheetCanvas { max-width: 100%; display: none; cursor: zoom-in; box-shadow: 0 6px 18px rgba(0,0,0,0.12); }
-        .empty-msg { color: #94a3b8; font-size: 14px; padding: 40px 0; }
+        .preview-box { width: fit-content; max-width: 100%; margin: 0 auto; overflow-x: auto; background: #fff; border: 1px solid #cbd5e1; border-radius: 0; padding: 0; line-height: 0; }
+        #sheetCanvas { display: block; max-width: 100%; height: auto; cursor: zoom-in; }
 
         /* 모달 */
         .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 9999; align-items: center; justify-content: center; }
@@ -237,13 +237,13 @@
 
     <div id="editArea">
         <div class="sec-head">
-            <h3>1. 캐릭터 · 표정 정리</h3>
+            <h3>1. 캐릭터별 표정 정리</h3>
             <div class="help-wrap">
                 <button type="button" class="help-icon" id="helpBtn" aria-label="사용 방법 보기">?</button>
                 <div class="help-pop" role="tooltip">
                     (1) 파일을 끌어오면 캐릭터별로 줄이 만들어지고, 각 줄에 파일 목록이 표시됩니다.<br>
                     (2) 표정 카드를 드래그하면 순서를 바꾸거나 다른 캐릭터 줄로 옮길 수 있고, 캐릭터 이름 왼쪽의 <strong>☰</strong>를 드래그하면 캐릭터 순서를 바꿀 수 있습니다.<br>
-                    (3) <strong>✂</strong> 버튼으로 확대·크롭(캐릭터 전체에 적용), <strong>⬜</strong> 버튼으로 빈칸을 만들 수 있습니다.
+                    (3) 캐릭터 줄의 이미지를 클릭하면 확대·크롭할 수 있습니다. (캐릭터 전체에 적용)
                 </div>
             </div>
         </div>
@@ -252,7 +252,6 @@
             <button class="sub-btn blue" id="btnAddChar" style="flex:0 0 auto; padding:10px 18px; font-size:14px;">＋ 캐릭터 추가</button>
         </div>
         <div class="btn-row" style="margin-bottom: 12px; justify-content:flex-end;">
-            <button class="sub-btn" id="btnToggleNames" style="flex:0 0 auto; padding:8px 16px;">표정 이름 끄기</button>
             <button class="sub-btn" id="btnCollapse" style="flex:0 0 auto; padding:8px 16px;">캐릭터 묶음 접기</button>
             <button class="sub-btn danger" id="btnClearAll" style="flex:0 0 auto; padding:8px 16px;">전체 삭제</button>
         </div>
@@ -262,10 +261,9 @@
     <hr class="divider">
 
     <div id="previewArea">
-        <h3>2. 최종 미리보기</h3>
-        <p class="help-text">표정 칸 클릭 시, 이미지 일괄 확대·크롭 / 앞·뒤에 빈칸 넣기 가능</p>
-        <div class="preview-box">
-            <div class="empty-msg" id="emptyMsg"></div>
+        <h3>2. 컨닝페이퍼 미리보기</h3>
+        <p class="help-text" id="previewHint"></p>
+        <div class="preview-box" id="previewBox" style="display:none;">
             <canvas id="sheetCanvas"></canvas>
         </div>
     </div>
@@ -285,10 +283,39 @@
         <div class="settings-cols">
         <div class="settings-stack">
             <div>
+                <div class="input-group" style="flex-wrap:nowrap;">
+                    <label style="margin:0; white-space:nowrap;">제목 <span style="font-weight:normal; color:#cbd5e1;">(선택)</span></label>
+                    <input type="text" id="title" placeholder="시나리오명" style="flex:1; min-width:0;">
+                    <input type="number" id="titleSize" value="70" title="제목 글자 크기">
+                </div>
+            </div>
+            <div>
+                <label>캐릭터 이름과 표정</label>
+                <div class="input-group" style="margin-bottom:12px;">
+                    <input type="checkbox" id="showChar" checked><label class="inline" for="showChar">이름 위치</label>
+                    <select id="labelPos">
+                        <option value="top">상단</option>
+                        <option value="left">좌측</option>
+                    </select>
+                    <input type="checkbox" id="showExpr" checked style="margin-left:12px;"><label class="inline" for="showExpr">표정 이름 표시</label>
+                </div>
+                <div class="input-group">
+                    <div class="field row"><label>캐릭터 이름 폰트 크기</label><input type="number" id="charSize" value="50"></div>
+                    <div class="field row"><label>표정 이름 폰트 크기</label><input type="number" id="exprSize" value="40"></div>
+                </div>
+            </div>
+            <div>
+                <label>사용자 폰트 업로드</label>
+                <input type="file" id="fontFile" accept=".ttf,.otf,.woff,.woff2">
+                <div id="fontStatus" style="font-size:12px; color:#64748b; margin-top:6px;"></div>
+            </div>
+        </div>
+        <div class="settings-stack settings-right">
+            <div>
                 <label>칸 크기 (px)</label>
                 <div class="input-group">
-                    <div class="field"><label>가로</label><input type="number" id="cellW" value="400" min="40"></div>
-                    <div class="field"><label>세로</label><input type="number" id="cellH" value="400" min="40" disabled></div>
+                    <div class="field row"><label>가로</label><input type="number" id="cellW" value="400" min="40"></div>
+                    <div class="field row"><label>세로</label><input type="number" id="cellH" value="400" min="40" disabled></div>
                     <div style="margin-top: 22px;">
                         <input type="checkbox" id="sq" checked><label class="inline" for="sq">1:1 고정</label>
                     </div>
@@ -297,9 +324,9 @@
             <div>
                 <label>배치</label>
                 <div class="input-group">
-                    <div class="field"><label>한 줄 최대 칸 수</label><input type="number" id="cols" value="5" min="0" title="0이면 한 줄에 전부"></div>
-                    <div class="field"><label>칸 간격</label><input type="number" id="gap" value="10" min="0"></div>
-                    <div class="field"><label>바깥 여백</label><input type="number" id="pad" value="20" min="0"></div>
+                    <div class="field row"><label>한 줄 최대 칸 수</label><input type="number" id="cols" value="5" min="0" title="0이면 한 줄에 전부"></div>
+                    <div class="field row"><label>칸 간격</label><input type="number" id="gap" value="20" min="0"></div>
+                    <div class="field row"><label>바깥 여백</label><input type="number" id="pad" value="70" min="0"></div>
                 </div>
                 <p class="help-text" style="margin:6px 0 0; color:#a8b3c4;">0 = 캐릭터 한 명의 이미지를 한 줄에 표시</p>
                 <div style="margin-top:12px; padding-top:12px; border-top:1px dashed #cbd5e1;">
@@ -312,41 +339,13 @@
             <div>
                 <label>색상</label>
                 <div class="input-group">
+                    <div class="field"><label>제목 글자</label><input type="color" id="titleColor" value="#1e293b"></div>
                     <div class="field"><label>표정 글자</label><input type="color" id="textColor" value="#2563eb"></div>
                     <div class="field"><label>이름 글자</label><input type="color" id="charColor" value="#1e293b"></div>
                     <div class="field"><label>칸 배경</label><input type="color" id="cellBg" value="#f1f5f9"></div>
                     <div class="field"><label>시트 배경</label><input type="color" id="pageBg" value="#ffffff"></div>
                     <div class="field"><label>빈칸</label><input type="color" id="blankBg" value="#ffffff"></div>
                 </div>
-            </div>
-        </div>
-        <div class="settings-stack settings-right">
-            <div>
-                <label>제목 (선택)</label>
-                <div class="input-group">
-                    <input type="text" id="title" placeholder="시나리오명 / 시트 제목" style="flex:1;">
-                    <input type="number" id="titleSize" value="44" title="제목 글자 크기">
-                </div>
-                <label style="margin-top:12px;">캐릭터 이름 글자 크기</label>
-                <input type="number" id="charSize" value="34">
-            </div>
-            <div>
-                <label>캐릭터 이름 표시</label>
-                <div class="input-group" style="margin-bottom:8px;">
-                    <input type="checkbox" id="showChar" checked><label class="inline" for="showChar">캐릭터 이름 표시</label>
-                    <select id="labelPos">
-                        <option value="top">상단</option>
-                        <option value="left">좌측</option>
-                    </select>
-                </div>
-                <div class="input-group">
-                    <input type="checkbox" id="showExpr" checked><label class="inline" for="showExpr">표정 이름 표시</label>
-                </div>
-            </div>
-            <div>
-                <label>사용자 폰트 업로드</label>
-                <input type="file" id="fontFile" accept=".ttf,.otf,.woff,.woff2">
-                <div id="fontStatus" style="font-size:12px; color:#64748b; margin-top:6px;"></div>
             </div>
         </div>
         </div>
@@ -365,7 +364,7 @@ let draggedItemId = null, draggedGroupId = null;
 const uid = (p) => `${p}_${state.counter++}`;
 
 const SETTING_IDS = ['cellW','cellH','sq','cols','gap','pad','tetris','showChar','labelPos','showExpr',
-                     'title','titleSize','charSize','textColor','charColor','cellBg','pageBg','blankBg'];
+                     'title','titleSize','titleColor','charSize','exprSize','textColor','charColor','cellBg','pageBg','blankBg'];
 
 /* ==================================================
    유틸
@@ -412,15 +411,17 @@ function readSettings() {
         cellW,
         cellH: $('sq').checked ? cellW : Math.max(20, num('cellH', 400)),
         cols: Math.max(0, num('cols', 5)),
-        gap: Math.max(0, num('gap', 10)),
-        pad: Math.max(0, num('pad', 20)),
+        gap: Math.max(0, num('gap', 20)),
+        pad: Math.max(0, num('pad', 70)),
         tetris: $('tetris').checked,
         showChar: $('showChar').checked,
         labelPos: $('labelPos').value,
         showExpr: $('showExpr').checked,
         title: $('title').value.trim(),
-        titleSize: num('titleSize', 44),
-        charSize: num('charSize', 34),
+        titleSize: num('titleSize', 70),
+        titleColor: $('titleColor').value,
+        charSize: num('charSize', 50),
+        exprSize: num('exprSize', 40),
         textColor: $('textColor').value,
         charColor: $('charColor').value,
         cellBg: $('cellBg').value,
@@ -452,11 +453,12 @@ async function addFiles(fileList) {
         if (!item) continue;
         item.isBase = !expr;   // 캐릭터 이름만 있는 파일 (예: 김철수.png)
         let group = state.groups.find(g => g.name === char);
-        if (!group) { group = { id: uid('g'), name: char, items: [] }; state.groups.push(group); }
+        if (!group) { group = { id: uid('g'), name: char, collapsed: true, items: [] }; state.groups.push(group); }
         group.items.push(item);
     }
     state.groups.forEach(normalizeBase);
     renderList(); scheduleDraw();
+    setTimeout(() => { const pa = $('previewArea'); if (pa) pa.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 150);
 }
 
 // 같은 캐릭터에 표정 있는 다른 파일이 있으면, 이름만 있는 파일(김철수.png)을 '기본'으로 등록하고 맨 앞에 둔다
@@ -553,6 +555,15 @@ function insertBlank(g, index) {
     renderList(); scheduleDraw();
 }
 
+// 빈칸은 편집 목록에 보이지 않으므로, 이웃한 '이미지'와 자리를 바꾼다
+function swapNeighbor(g, i, dir) {
+    let j = i + dir;
+    while (j >= 0 && j < g.items.length && g.items[j].blank) j += dir;
+    if (j < 0 || j >= g.items.length) return false;
+    [g.items[i], g.items[j]] = [g.items[j], g.items[i]];
+    return true;
+}
+
 function renderList() {
     const root = $('groupList');
     root.innerHTML = '';
@@ -598,10 +609,7 @@ function renderList() {
         const addBtn = mk('button', 'mini-btn', '📥 파일 추가');
         addBtn.title = '이 캐릭터에 파일 추가 (표정 이름만 적힌 파일용)';
         addBtn.onclick = () => fileIn.click();
-        const blankBtn = mk('button', 'mini-btn', '⬜ 빈칸');
-        blankBtn.title = '이 캐릭터 맨 뒤에 빈칸 추가';
-        blankBtn.onclick = () => insertBlank(g, g.items.length);
-        head.append(handle, fold, nameInput, cnt, addBtn, fileIn, blankBtn, del);
+        head.append(handle, fold, nameInput, cnt, addBtn, fileIn, del);
 
         card.addEventListener('dragover', (e) => {
             if (draggedGroupId) {                       // 캐릭터 순서 드래그
@@ -638,7 +646,7 @@ function renderList() {
 
         if (!g.collapsed) {
             const grid = mk('div', 'group-grid');
-            if (!g.items.length) grid.appendChild(mk('div', 'empty-hint', '표정 이름만 적힌 파일을 여기에 드래그하거나 📥 파일 추가로 올려 주세요.'));
+            if (!realCount(g)) grid.appendChild(mk('div', 'empty-hint', '표정 이름만 적힌 파일을 여기에 드래그하거나 📥 파일 추가로 올려 주세요.'));
             grid.addEventListener('dragover', (e) => { if (draggedItemId) e.preventDefault(); });
             grid.addEventListener('drop', (e) => {
                 if (!draggedItemId) return;
@@ -647,6 +655,7 @@ function renderList() {
             });
 
             g.items.forEach((item, ii) => {
+                if (item.blank) return;   // 빈칸은 캐릭터 줄에 넣지 않고, 테트리스 미리보기에서만 사용
                 const el = mk('div', 'collage-item');
                 el.draggable = true;
                 el.addEventListener('dragstart', (e) => {
@@ -665,51 +674,50 @@ function renderList() {
 
                 const ctr = mk('div', 'item-controls');
                 const bL = mk('button', null, '◀'); bL.title = '앞으로';
-                const bX = mk('button', null, '✕'); bX.title = item.blank ? '빈칸 삭제' : '제외';
                 const bR = mk('button', null, '▶'); bR.title = '뒤로';
-                bL.onclick = () => { if (ii > 0) { [g.items[ii - 1], g.items[ii]] = [g.items[ii], g.items[ii - 1]]; renderList(); scheduleDraw(); } };
-                bR.onclick = () => { if (ii < g.items.length - 1) { [g.items[ii + 1], g.items[ii]] = [g.items[ii], g.items[ii + 1]]; renderList(); scheduleDraw(); } };
-                bX.onclick = () => { g.items.splice(ii, 1); cleanupEmptyGroups(); renderList(); scheduleDraw(); };
+                bL.onclick = () => { if (swapNeighbor(g, ii, -1)) { renderList(); scheduleDraw(); } };
+                bR.onclick = () => { if (swapNeighbor(g, ii, 1)) { renderList(); scheduleDraw(); } };
+                ctr.append(bL, bR);
 
-                if (item.blank) {
-                    el.classList.add('blank');
-                    el.append(mk('div', 'thumb blank-thumb', '빈칸'), mk('div', 'fname', '(빈 칸)'));
-                    ctr.append(bL, bX, bR);
-                    el.appendChild(ctr);
-                } else {
-                    const bC = mk('button', g.crop ? 'on' : '', '✂'); bC.title = '확대 · 크롭 (캐릭터 전체에 적용)';
-                    bC.onclick = () => openCrop(g, ii);
-                    ctr.append(bL, bC, bX, bR);
+                // 우측 상단 X: 이미지 제외
+                const bX = mk('button', 'item-x', '✕'); bX.title = '이미지 제외';
+                bX.onclick = (e) => {
+                    e.stopPropagation();
+                    const k = g.items.indexOf(item);
+                    if (k >= 0) g.items.splice(k, 1);
+                    cleanupEmptyGroups(); renderList(); scheduleDraw();
+                };
 
-                    const thumb = mk('div', 'thumb');
-                    thumb.style.backgroundImage = `url("${item.url}")`;
-                    const input = mk('input'); input.type = 'text'; input.value = item.expr; input.placeholder = '표정 이름';
-                    input.addEventListener('input', () => { item.expr = input.value; scheduleDraw(); });
-                    const fname = mk('div', 'fname', item.fileName); fname.title = item.fileName;
-                    el.append(thumb, input, fname, ctr);
-                }
+                // 이미지를 클릭하면 확대 · 크롭 (캐릭터 전체에 적용)
+                const thumb = mk('div', 'thumb');
+                thumb.title = '클릭해서 확대 · 크롭 (캐릭터 전체에 적용)';
+                thumb.style.backgroundImage = `url("${item.url}")`;
+                thumb.onclick = () => openCrop(g, ii);
+
+                const input = mk('input'); input.type = 'text'; input.value = item.expr; input.placeholder = '표정 이름';
+                input.addEventListener('input', () => { item.expr = input.value; scheduleDraw(); });
+                const fname = mk('div', 'fname', item.fileName); fname.title = item.fileName;
+                el.append(thumb, input, fname, ctr, bX);
                 grid.appendChild(el);
             });
             card.appendChild(grid);
         }
         root.appendChild(card);
     });
-    updateToggleNamesBtn();
+    updatePreviewHint();
     updateCollapseBtn();
 }
 
-// 표정 이름 전체 표시 여부는 시트 설정의 '표정 이름 표시'와 같은 값
-function updateToggleNamesBtn() {
-    $('btnToggleNames').textContent = $('showExpr').checked ? '표정 이름 끄기' : '표정 이름 켜기';
+// 빈칸은 테트리스 배치일 때만 쓸 수 있으므로 안내 문구도 그에 맞춰 바꾼다
+function updatePreviewHint() {
+    $('previewHint').textContent = $('tetris').checked
+        ? '표정 칸 클릭 시, 이미지 일괄 확대·크롭 / 앞·뒤에 빈칸 넣기 가능'
+        : '표정 칸 클릭 시, 이미지 일괄 확대·크롭 가능';
 }
 function updateCollapseBtn() {
     const all = state.groups.length > 0 && state.groups.every(g => g.collapsed);
     $('btnCollapse').textContent = all ? '캐릭터 묶음 펼치기' : '캐릭터 묶음 접기';
 }
-$('btnToggleNames').addEventListener('click', () => {
-    $('showExpr').checked = !$('showExpr').checked;
-    updateToggleNamesBtn(); scheduleDraw();
-});
 $('btnCollapse').addEventListener('click', () => {
     if (!state.groups.length) return;
     const all = state.groups.every(g => g.collapsed);
@@ -764,16 +772,17 @@ function drawSheet(forExport) {
     const cvs = $('sheetCanvas');
     const groups = state.groups.filter(g => g.items.some(i => !i.blank));
     cellRects = []; labelRects = [];
-    if (!groups.length) { cvs.style.display = 'none'; $('emptyMsg').style.display = 'block'; return; }
-    $('emptyMsg').style.display = 'none';
-    cvs.style.display = 'inline-block';
+    if (!groups.length) { $('previewBox').style.display = 'none'; return; }
+    $('previewBox').style.display = 'block';
+    cvs.style.display = 'block';
 
     const S = readSettings();
     const ff = getFontFamily();
     const ctx = cvs.getContext('2d');
     const { cellW, cellH, gap, pad } = S;
     const blockGap = Math.round(gap * 2);
-    const colsFor = (g) => S.cols > 0 ? Math.min(S.cols, g.items.length) : g.items.length;
+    // 빈칸은 테트리스 배치에서만 칸을 차지한다
+    const colsFor = (g) => { const n = S.tetris ? g.items.length : realCount(g); return S.cols > 0 ? Math.min(S.cols, n) : n; };
 
     // 캐릭터 이름 영역 크기 측정 (테트리스 배치에서는 첫 칸 위에 겹쳐 그리므로 별도 영역 없음)
     const left = !S.tetris && S.showChar && S.labelPos === 'left';
@@ -814,14 +823,19 @@ function drawSheet(forExport) {
         let yy = 0;
         groups.forEach((g, gi) => {
             const cols = colsFor(g);
-            const rows = Math.ceil(g.items.length / cols);
+            const rows = Math.ceil(realCount(g) / cols);
             const bodyH = rows * cellH + (rows - 1) * gap;
             blocks.push({ g, y: yy, bodyH, nameW: nameWs[gi] });
-            g.items.forEach((item, i) => placed.push({
-                g, item, i, first: false,
-                x: (i % cols) * (cellW + gap),
-                y: yy + headH + Math.floor(i / cols) * (cellH + gap)
-            }));
+            let k = 0;
+            g.items.forEach((item, i) => {
+                if (item.blank) return;   // 일반 배치에서는 빈칸을 그리지 않음
+                placed.push({
+                    g, item, i, first: false,
+                    x: (k % cols) * (cellW + gap),
+                    y: yy + headH + Math.floor(k / cols) * (cellH + gap)
+                });
+                k++;
+            });
             yy += headH + bodyH + blockGap;
         });
         const maxCols = Math.max(...groups.map(colsFor));
@@ -846,7 +860,7 @@ function drawSheet(forExport) {
     if (S.title) {
         ctx.font = `900 ${S.titleSize}px ${ff}`;
         ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-        stroke(S.title, pad, y0, S.titleSize, S.charColor);
+        stroke(S.title, pad, y0, S.titleSize, S.titleColor);
         y0 += titleH;
     }
     const gridX = pad + (left ? labelW + gap * 2 : 0);
@@ -884,7 +898,7 @@ function drawSheet(forExport) {
         ctx.restore();
 
         if (S.showExpr && p.item.expr) {
-            const fs = Math.max(14, Math.floor(cellW * 0.12));
+            const fs = Math.max(8, S.exprSize);
             ctx.font = `900 ${fs}px ${ff}`;
             ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
             stroke(p.item.expr, cx + cellW / 2, cy + cellH - fs * 0.2, fs, S.textColor);
@@ -1056,7 +1070,12 @@ $('sheetCanvas').addEventListener('click', (e) => {
     const py = (e.clientY - r.top) * (cvs.height / r.height);
     const inside = (b) => px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h;
     const cell = cellRects.find(inside);
-    if (cell) { showCellMenu(e.clientX, e.clientY, cell); return; }
+    if (cell) {
+        // 빈칸 메뉴는 테트리스 배치에서만 — 일반 배치에서는 바로 크롭 창
+        if ($('tetris').checked) showCellMenu(e.clientX, e.clientY, cell);
+        else openCrop(cell.g, cell.i);
+        return;
+    }
     const label = labelRects.find(inside);
     if (label) openCrop(label.g, firstReal(label.g));
 });
@@ -1069,8 +1088,7 @@ SETTING_IDS.forEach(id => {
     const handler = () => {
         if (id === 'sq') { $('cellH').disabled = $('sq').checked; if ($('sq').checked) $('cellH').value = $('cellW').value; }
         if (id === 'cellW' && $('sq').checked) $('cellH').value = $('cellW').value;
-        if (id === 'showExpr') updateToggleNamesBtn();
-        if (id === 'tetris') $('labelPos').disabled = $('tetris').checked;
+        if (id === 'tetris') { $('labelPos').disabled = $('tetris').checked; updatePreviewHint(); }
         scheduleDraw();
     };
     el.addEventListener('input', handler);
