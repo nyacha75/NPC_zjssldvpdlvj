@@ -199,9 +199,9 @@
     <div class="modal-box crop-box">
         <h3 id="cropTitle">✂ 확대 · 크롭</h3>
         <div class="crop-nav">
-            <button class="mini-btn" id="cropPrev" title="이전 표정">◀</button>
+            <button class="mini-btn" id="cropPrev" title="이전 캐릭터">◀</button>
             <span id="cropIdx">1 / 1</span>
-            <button class="mini-btn" id="cropNext" title="다음 표정">▶</button>
+            <button class="mini-btn" id="cropNext" title="다음 캐릭터">▶</button>
         </div>
         <canvas id="cropCanvas"></canvas>
         <div class="input-group" style="width:100%;">
@@ -920,7 +920,8 @@ function drawSheet(forExport) {
    미리보기 클릭 → 메뉴(확대·크롭 / 빈칸) , 확대 · 크롭
    ================================================== */
 // 크롭은 캐릭터 단위(g.crop)로 저장되어 그 캐릭터의 모든 표정에 같이 적용된다
-const cropState = { group: null, idx: 0, snapshot: null, drag: null };
+const cropState = { group: null, idx: 0, snaps: new Map(), idxMap: new Map(), drag: null };
+const cropGroups = () => state.groups.filter(g => g.items.some(i => !i.blank));
 const cropCvs = $('cropCanvas');
 const curItem = () => cropState.group.items[cropState.idx];
 
@@ -930,14 +931,15 @@ function ensureCrop(g) { if (!g.crop) g.crop = defaultCrop(); return g.crop; }
 function openCrop(g, idx) {
     if (!g || g.items.every(i => i.blank)) return;
     if (!g.items[idx] || g.items[idx].blank) idx = firstReal(g);
+    cropState.snaps = new Map(); cropState.idxMap = new Map();
     cropState.group = g; cropState.idx = idx;
-    cropState.snapshot = g.crop ? { ...g.crop } : null;
+    cropState.snaps.set(g, g.crop ? { ...g.crop } : null);
+    cropState.idxMap.set(g, idx);
     $('cropModal').classList.add('open');
     refreshCrop();
 }
 function closeCrop(revert) {
-    const g = cropState.group;
-    if (g && revert) g.crop = cropState.snapshot;
+    if (revert) cropState.snaps.forEach((snap, gr) => { gr.crop = snap; });
     $('cropModal').classList.remove('open');
     cropState.group = null; cropState.drag = null;
     renderList(); scheduleDraw();
@@ -946,9 +948,9 @@ function closeCrop(revert) {
 function refreshCrop() {
     const g = cropState.group; if (!g) return;
     const item = curItem();
-    const real = g.items.filter(i => !i.blank);
-    $('cropTitle').textContent = `✂ ${g.name || '(이름 없음)'} · ${item.expr || item.fileName}`;
-    $('cropIdx').textContent = `${real.indexOf(item) + 1} / ${real.length}`;
+    const gs = cropGroups();
+    $('cropTitle').textContent = `✂ ${g.name || '(이름 없음)'}`;
+    $('cropIdx').textContent = `${gs.indexOf(g) + 1} / ${gs.length}`;
     const z = Math.round((g.crop ? g.crop.zoom : 1) * 100);
     $('cropZoom').value = z; $('cropZoomVal').textContent = z + '%';
     drawCrop();
@@ -998,10 +1000,13 @@ function setCropZoom(z) {
 
 function stepCrop(dir) {
     const g = cropState.group; if (!g) return;
-    const n = g.items.length;
-    let i = cropState.idx;
-    for (let k = 0; k < n; k++) { i = (i + dir + n) % n; if (!g.items[i].blank) break; }
-    cropState.idx = i; refreshCrop();
+    const gs = cropGroups(); if (gs.length < 2) return;
+    cropState.idxMap.set(g, cropState.idx);
+    const ng = gs[(gs.indexOf(g) + dir + gs.length) % gs.length];
+    if (!cropState.snaps.has(ng)) cropState.snaps.set(ng, ng.crop ? { ...ng.crop } : null);
+    cropState.group = ng;
+    cropState.idx = cropState.idxMap.has(ng) ? cropState.idxMap.get(ng) : firstReal(ng);
+    refreshCrop();
 }
 
 cropCvs.addEventListener('pointerdown', (e) => {
