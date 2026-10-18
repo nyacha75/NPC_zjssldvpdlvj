@@ -156,8 +156,7 @@
         .cell-menu button.danger:hover { background: #fee2e2; }
         .crop-nav { display: flex; align-items: center; justify-content: center; gap: 12px; font-weight: 700; color: #475569; }
         .thumb {
-            width: 100%; aspect-ratio: 1/1; border-radius: 4px; border: 1px solid #eee; cursor: pointer;
-            background-color: #fff; background-repeat: no-repeat; background-position: center top; background-size: cover;
+            width: 100%; border-radius: 4px; border: 1px solid #eee; cursor: pointer; overflow: hidden; line-height: 0;
         }
         .collage-item input { width: 95%; text-align: center; font-size: 13px; font-weight: bold; padding: 6px; color: var(--primary); }
         .item-controls { display: flex; gap: 4px; width: 100%; }
@@ -169,7 +168,7 @@
         .item-controls button.on { background: #1e293b; color: #fff; }
 
         .preview-box { width: fit-content; max-width: 100%; margin: 0 auto; overflow-x: auto; background: #fff; border: 1px solid #cbd5e1; border-radius: 0; padding: 0; line-height: 0; }
-        #sheetCanvas { display: block; max-width: 100%; height: auto; cursor: zoom-in; }
+        #sheetCanvas { display: block; max-width: 100%; max-height: calc(100vh - 140px); width: auto; height: auto; cursor: zoom-in; }
 
         /* 모달 */
         .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 9999; align-items: center; justify-content: center; }
@@ -228,11 +227,11 @@
     <div class="dropzone" id="dropzone">
         <div class="big">📥 포트레이트 파일 업로드</div>
         <div class="small">
-            여러 캐릭터 파일 한번에 업로드 가능.<br>
+            여러 캐릭터 파일 한번에 업로드 가능. (ZIP 형식도 가능)<br>
             자동으로 캐릭터별로 묶이며, <code>-</code> <code>_</code> <code>@</code> <code>( )</code> 뒤 혹은 안의 표정 이름도 자동 입력<br>
             <span style="font-size:11px; color:#a8b3c4;">(예: 루티(활짝).png / 루티_부끄.png)</span>
         </div>
-        <input type="file" id="fileInput" accept="image/*" multiple style="display:none;">
+        <input type="file" id="fileInput" accept="image/*,.zip,application/zip" multiple style="display:none;">
     </div>
 
     <div id="editArea">
@@ -445,8 +444,63 @@ function loadItem(file, expr) {
     });
 }
 
+/* ---- zip 읽기 (브라우저 내장 DecompressionStream 사용, 외부 라이브러리 없음) ---- */
+const IMG_MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', bmp: 'image/bmp' };
+async function inflateRaw(u8) {
+    const ds = new DecompressionStream('deflate-raw');
+    const out = new Response(new Blob([u8]).stream().pipeThrough(ds));
+    return new Uint8Array(await out.arrayBuffer());
+}
+async function unzipImages(file) {
+    const buf = new Uint8Array(await file.arrayBuffer());
+    const dv = new DataView(buf.buffer);
+    let eocd = -1;
+    for (let i = buf.length - 22; i >= Math.max(0, buf.length - 65557); i--) { if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; } }
+    if (eocd < 0) throw new Error('zip 형식이 아닙니다');
+    const count = dv.getUint16(eocd + 10, true);
+    let p = dv.getUint32(eocd + 16, true);
+    const td = new TextDecoder('utf-8');
+    const out = [];
+    for (let n = 0; n < count; n++) {
+        if (dv.getUint32(p, true) !== 0x02014b50) break;
+        const method = dv.getUint16(p + 10, true);
+        const csize = dv.getUint32(p + 20, true);
+        const nlen = dv.getUint16(p + 28, true), elen = dv.getUint16(p + 30, true), clen = dv.getUint16(p + 32, true);
+        const lho = dv.getUint32(p + 42, true);
+        const full = td.decode(buf.subarray(p + 46, p + 46 + nlen));
+        p += 46 + nlen + elen + clen;
+        const base = full.split('/').pop();
+        const ext = (base.split('.').pop() || '').toLowerCase();
+        if (!base || full.endsWith('/') || full.startsWith('__MACOSX') || base.startsWith('.') || !IMG_MIME[ext]) continue;
+        const ds = lho + 30 + dv.getUint16(lho + 26, true) + dv.getUint16(lho + 28, true);
+        const raw = buf.subarray(ds, ds + csize);
+        const data = method === 0 ? raw : method === 8 ? await inflateRaw(raw) : null;
+        if (!data) continue;
+        out.push(new File([data], base.normalize('NFC'), { type: IMG_MIME[ext] }));
+    }
+    return out;
+}
+// zip 파일명에서 시나리오명 추정: 'EDIBLE_NPC____-2026...-001.zip' → 'EDIBLE'
+function scenarioFromZip(name) {
+    let t = name.replace(/\.zip$/i, '').replace(/^[0-9a-f]{8}-/i, '')
+        .replace(/-\d{8}T\d{6}Z(-\d+)*$/i, '').replace(/[_]+/g, ' ');
+    t = t.replace(/(NPC|스탠딩|standing|포트레이트|portrait|컨닝페이퍼)/gi, ' ').replace(/[\s\-]+/g, ' ').trim();
+    return t;
+}
+
 async function addFiles(fileList) {
-    const files = Array.from(fileList).filter(f => f.type.startsWith('image/'));
+    const all = [];
+    for (const f of Array.from(fileList)) {
+        if (/\.zip$/i.test(f.name) || f.type === 'application/zip' || f.type === 'application/x-zip-compressed') {
+            try {
+                const imgs = await unzipImages(f);
+                all.push(...imgs);
+                const sc = scenarioFromZip(f.name);
+                if (imgs.length && sc && !$('title').value.trim()) { $('title').value = sc; scheduleDraw(); }
+            } catch (err) { alert(`'${f.name}' 압축 파일을 읽지 못했습니다: ${err.message}`); }
+        } else all.push(f);
+    }
+    const files = all.filter(f => f.type.startsWith('image/'));
     if (!files.length) return;
     files.sort((a, b) => a.name.localeCompare(b.name, 'ko', { numeric: true }));
     for (const file of files) {
@@ -459,12 +513,18 @@ async function addFiles(fileList) {
         group.items.push(item);
     }
     state.groups.forEach(normalizeBase);
+    state.groups.forEach(frontBase);
     renderList(); scheduleDraw();
     setTimeout(() => { const pa = $('previewArea'); if (pa) pa.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 150);
 }
 
 // 같은 캐릭터에 표정 있는 다른 파일이 있으면, 이름만 있는 파일(김철수.png)을 '기본'으로 등록하고 맨 앞에 둔다
+function frontBase(g) {
+    const isB = (i) => !i.blank && (i.expr || '').trim() === '기본';
+    g.items = [...g.items.filter(isB), ...g.items.filter(i => !isB(i))];
+}
 function normalizeBase(g) {
+    frontBase(g);
     if (!g.items.some(i => !i.isBase && !i.blank)) return;
     const bases = g.items.filter(i => i.isBase && !i.baseApplied);
     if (!bases.length) return;
@@ -486,6 +546,7 @@ async function addFilesToGroup(fileList, groupId) {
         const item = await loadItem(file, expr);
         if (item) g.items.push(item);
     }
+    frontBase(g);
     renderList(); scheduleDraw();
 }
 
@@ -693,7 +754,13 @@ function renderList() {
                 // 이미지를 클릭하면 확대 · 크롭 (캐릭터 전체에 적용)
                 const thumb = mk('div', 'thumb');
                 thumb.title = '클릭해서 확대 · 크롭 (캐릭터 전체에 적용)';
-                thumb.style.backgroundImage = `url("${item.url}")`;
+                const tc = document.createElement('canvas');
+                { const S0 = readSettings(), tw = 200, th = Math.max(1, Math.round(200 * S0.cellH / S0.cellW));
+                  tc.width = tw; tc.height = th;
+                  const tx = tc.getContext('2d'); tx.fillStyle = S0.cellBg; tx.fillRect(0, 0, tw, th);
+                  const rr = imageRect(item, 0, 0, tw, th, g.crop); tx.drawImage(item.img, rr.dx, rr.dy, rr.dw, rr.dh); }
+                tc.style.cssText = 'display:block; width:100%; height:auto; border-radius:3px;';
+                thumb.appendChild(tc);
                 thumb.onclick = () => openCrop(g, ii);
 
                 const input = mk('input'); input.type = 'text'; input.value = item.expr; input.placeholder = '표정 이름';
@@ -1005,6 +1072,7 @@ function stepCrop(dir) {
     const g = cropState.group; if (!g) return;
     const gs = cropGroups(); if (gs.length < 2) return;
     cropState.idxMap.set(g, cropState.idx);
+    cropState.snaps.delete(g);   // 넘어가면 현재 캐릭터 크롭은 저장된 것으로 확정
     const ng = gs[(gs.indexOf(g) + dir + gs.length) % gs.length];
     if (!cropState.snaps.has(ng)) cropState.snaps.set(ng, ng.crop ? { ...ng.crop } : null);
     cropState.group = ng;
