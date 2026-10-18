@@ -276,6 +276,7 @@
             <input type="file" id="importJson2" accept=".json" style="display:none;">
         </label>
     </div>
+    <div id="settingsArea" style="display:none;">
     <hr class="divider">
 
     <h3 style="margin-bottom:-10px;">3. 시트 설정</h3>
@@ -349,6 +350,7 @@
             </div>
         </div>
         </div>
+    </div>
     </div>
 
 </div>
@@ -772,6 +774,7 @@ function drawSheet(forExport) {
     const cvs = $('sheetCanvas');
     const groups = state.groups.filter(g => g.items.some(i => !i.blank));
     cellRects = []; labelRects = [];
+    $('settingsArea').style.display = groups.length ? 'block' : 'none';
     if (!groups.length) { $('previewBox').style.display = 'none'; return; }
     $('previewBox').style.display = 'block';
     cvs.style.display = 'block';
