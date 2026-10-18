@@ -187,7 +187,7 @@
 <div class="modal-overlay" id="nameModal">
     <div class="modal-box">
         <h3>💾 백업 파일명 입력</h3>
-        <input type="text" id="backupNameInput" value="NPC_컨닝페이퍼" placeholder="백업 파일명 입력">
+        <input type="text" id="backupNameInput" value="NPC 컨닝페이퍼" placeholder="백업 파일명 입력">
         <div class="modal-btns">
             <button class="btn-cancel" id="backupCancel">취소</button>
             <button class="btn-confirm" id="backupConfirm">저장</button>
@@ -1151,11 +1151,16 @@ $('btnDownload').addEventListener('click', () => {
     drawSheet(false);  // 미리보기 복원 (toBlob은 호출 시점의 화면을 캡처)
 });
 
-$('btnBackup').addEventListener('click', () => $('nameModal').classList.add('open'));
+const defaultBackupName = () => { const t = $('title').value.trim(); return `${t ? t + '_' : ''}NPC 컨닝페이퍼`; };
+$('btnBackup').addEventListener('click', () => {
+    $('backupNameInput').value = defaultBackupName();
+    $('nameModal').classList.add('open');
+    $('backupNameInput').select();
+});
 $('backupCancel').addEventListener('click', () => $('nameModal').classList.remove('open'));
 $('backupConfirm').addEventListener('click', async () => {
     $('nameModal').classList.remove('open');
-    const name = $('backupNameInput').value.trim() || 'NPC_컨닝페이퍼';
+    const name = $('backupNameInput').value.trim() || defaultBackupName();
     const btn = $('btnBackup'); const orig = btn.textContent;
     btn.disabled = true; btn.textContent = '백업 생성 중...';
     try {
